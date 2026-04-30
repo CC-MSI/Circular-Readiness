@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circular Readiness Assessment</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js for the radar chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <!-- Inter font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db;
+            outline: none;
+            opacity: 1;
+            transition: opacity 0.2s ease-in-out;
+            border-radius: 4px;
+        }
+        input[type="range"]:hover {
+            opacity: 1;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #2cc700; /* Cassini Green */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #2cc700; /* Cassini Green */
+            cursor: pointer;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #evaluate-btn:disabled {
+            @apply bg-gray-300 text-gray-500 cursor-not-allowed;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Main container for assessment and chart -->
+        <div class="flex flex-col gap-6">
+            <!-- Assessment Table Section -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="assessment-table">
+                        <thead class="sticky top-0 z-10">
+                            <tr class="bg-[#2cc700]">
+                                <th class="p-4 font-bold text-xl text-white text-center" colspan="3">Circular Readiness Assessment für den Handel</th>
+                            </tr>
+                            <tr class="bg-gray-100 border-b-2 border-gray-200">
+                                <th class="p-3 font-semibold text-sm text-gray-800 uppercase tracking-wider text-left">Dimension</th>
+                                <th class="p-3 font-semibold text-sm text-gray-800 uppercase tracking-wider text-left">Kriterium</th>
+                                <th class="p-3 font-semibold text-sm text-gray-800 uppercase tracking-wider text-left whitespace-nowrap">Bewertung</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                            <!-- Table rows will be generated here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Email Input Field -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl">
+                <label for="email-input" class="block text-sm font-semibold text-gray-700 mb-2">E-Mail-Adresse (Pflichtfeld)</label>
+                <input type="email" id="email-input" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2cc700]" placeholder="Ihre E-Mail-Adresse">
+            </div>
+
+            <!-- Evaluate Button -->
+            <button id="evaluate-btn" class="w-full bg-[#2cc700] text-white font-semibold py-3 px-6 rounded-xl shadow-lg transition-colors duration-300 disabled:bg-gray-300 disabled:text-gray-500">
+                Auswerten
+            </button>
+            
+            <!-- Chart and Classification Section -->
+            <div class="bg-white p-6 rounded-2xl shadow-xl flex-1 mt-6 flex flex-col items-center justify-center">
+                <h2 class="text-xl font-semibold mb-4 text-center text-gray-800">Ihre Ergebnisse</h2>
+                <div class="relative w-full h-[500px] mx-auto flex items-center justify-center">
+                    <canvas id="readiness-chart"></canvas>
+                    <!-- Initial message overlay -->
+                    <div id="initial-message" class="absolute inset-0 flex items-center justify-center text-center p-4 bg-white/80 rounded-2xl">
+                        <p class="text-gray-500 text-lg">Wählen Sie Ihre Bewertungen in der Tabelle aus, um das Diagramm zu erstellen.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- New section for the maturity level classification and recommendations -->
+            <div id="classification-result" class="bg-white p-6 rounded-2xl shadow-xl mt-6 hidden">
+                <h2 class="text-xl font-semibold mb-2 text-center text-gray-800">Reifegradklasse</h2>
+                <div class="text-center">
+                    <p id="maturity-level-title" class="text-3xl font-bold mb-2"></p>
+                    <p id="maturity-level-description" class="text-gray-600"></p>
+                </div>
+                <div id="maturity-level-recommendations" class="mt-4">
+                    <!-- Recommendations will be added here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Assessment Data
+        const assessmentData = [
+            { 
+                id: 'strategy1', dimension: 'Strategie & Governance', criterion: 'Existenz einer Circular-Strategie', rating: 3,
+                description: 'Beurteilen Sie, ob und wie die Kreislaufwirtschaft in Ihrer Unternehmensstrategie verankert ist.',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) vereinzelt in Abteilungen',
+                    3: '(3) Teil der Nachhaltigkeitsstrategie',
+                    4: '(4) integrierte Circular-Strategie mit KPIs',
+                    5: '(5) eigenständige Circular-Strategie mit KPIs'
+                }
+            },
+            { 
+                id: 'strategy2', dimension: '', criterion: 'Verankerung im Management', rating: 3,
+                description: 'Bewerten Sie, auf welcher Ebene das Thema Kreislaufwirtschaft im Management diskutiert wird.',
+                labels: {
+                    1: '(1) kaum Thema',
+                    2: '(2) punktuell in Projekten',
+                    3: '(3) Abteilungsinitiativen',
+                    4: '(4) fester Bestandteil der Bereichs-Agenda',
+                    5: '(5) Vorstandsagenda'
+                }
+            },
+            { 
+                id: 'products1', dimension: 'Produkte & Geschäftsmodelle', criterion: 'Anteil kreislauffähiger Produkte', rating: 3,
+                description: 'Anteil der Produkte, die für Wiederverwendung, Reparatur oder Recycling designt sind.',
+                labels: {
+                    1: '(1) <5 %',
+                    2: '(2) 5–20 %',
+                    3: '(3) 20–40 %',
+                    4: '(4) 40–70 %',
+                    5: '(5) >70 %'
+                }
+            },
+            { 
+                id: 'products2', dimension: '', criterion: 'Rücknahme-/Reparaturservices', rating: 3,
+                description: 'Überlegen Sie, welche Services Sie zur Produktlebensverlängerung anbieten.',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) in Planung',
+                    3: '(3) Pilotprojekte',
+                    4: '(4) in ausgewählten Märkten',
+                    5: '(5) flächendeckend'
+                }
+            },
+            { 
+                id: 'processes1', dimension: 'Prozesse & Lieferkette', criterion: 'Recyclingfähigkeit Verpackungen', rating: 3,
+                description: 'Bewerten Sie den Anteil tatsächlich recycelbarer Produktverpackungen.',
+                labels: {
+                    1: '(1) kaum',
+                    2: '(2) weniger als 50 %',
+                    3: '(3) überwiegend',
+                    4: '(4) fast alle',
+                    5: '(5) 100 % recyclingfähig'
+                }
+            },
+            { 
+                id: 'processes2', dimension: '', criterion: 'Kreislaufintegration Lieferanten', rating: 3,
+                description: 'Einbindung der Lieferanten zur Förderung kreislauffähiger Materialien.',
+                labels: {
+                    1: '(1) keine Kriterien',
+                    2: '(2) erste Gespräche',
+                    3: '(3) Pilot-Lieferanten integriert',
+                    4: '(4) feste Vorgaben in Verträgen',
+                    5: '(5) branchenweit'
+                }
+            },
+            { 
+                id: 'it1', dimension: 'IT & Daten', criterion: 'Transparenz Materialflüsse', rating: 3,
+                description: 'Digitalisierungsgrad der Materialflusserfassung im Unternehmen.',
+                labels: {
+                    1: '(1) kaum Daten',
+                    2: '(2) manuelle Erfassung',
+                    3: '(3) teilweise',
+                    4: '(4) überwiegend digital',
+                    5: '(5) voll digital erfasst'
+                }
+            },
+            { 
+                id: 'it2', dimension: '', criterion: 'Nutzung von Daten/Analytics', rating: 3,
+                description: 'Einsatz von Analytics oder KI zur Optimierung von Kreislaufprozessen.',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) rudimentäre Auswertungen',
+                    3: '(3) teilweise KPI-Dashboards',
+                    4: '(4) fortgeschrittene Datenanalyse',
+                    5: '(5) predictive Circular Analytics'
+                }
+            },
+            { 
+                id: 'culture1', dimension: 'Kultur & Kompetenzen', criterion: 'Mitarbeitendenschulungen', rating: 3,
+                description: 'Umfang der Schulungen zu Kreislaufwirtschaft und Nachhaltigkeit.',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) in einzelnen Teams',
+                    3: '(3) abteilungsbezogen',
+                    4: '(4) für ausgewählte Funktionen',
+                    5: '(5) flächendeckend inkl. Führung'
+                }
+            },
+            { 
+                id: 'culture2', dimension: '', criterion: 'Circular Champions', rating: 3,
+                description: 'Vorhandensein von Personen/Teams, die das Thema aktiv vorantreiben.',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) informelle Initiative',
+                    3: '(3) in Pilotbereichen',
+                    4: '(4) dedizierte Ansprechpartner',
+                    5: '(5) Unternehmensweit'
+                }
+            },
+            { 
+                id: 'market1', dimension: 'Markt & Stakeholder', criterion: 'Kooperationen & Netzwerke', rating: 3,
+                description: 'Intensität der Zusammenarbeit mit externen Partnern (Startups, Recycler).',
+                labels: {
+                    1: '(1) keine',
+                    2: '(2) erste Kontakte',
+                    3: '(3) Mitglied in Initiativen',
+                    4: '(4) Kooperationen mit Partnern',
+                    5: '(5) aktive Branchenführerschaft'
+                }
+            },
+            { 
+                id: 'market2', dimension: '', criterion: 'Kundenakzeptanz', rating: 3,
+                description: 'Annahme der Kreislaufangebote durch Kunden (belegt durch Feedback/Sales).',
+                labels: {
+                    1: '(1) nicht getestet',
+                    2: '(2) erste Umfragen',
+                    3: '(3) Pilot-Marktforschung',
+                    4: '(4) Kundenfeedback positiv',
+                    5: '(5) belegt durch Nachfrage & Sales'
+                }
+            },
+        ];
+
+        let chart = null;
+        const chartId = 'readiness-chart';
+        const emailInput = document.getElementById('email-input');
+
+        function renderTable() {
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = ''; 
+            assessmentData.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-200 hover:bg-gray-50 transition-colors duration-150';
+                
+                const dimensionCell = document.createElement('td');
+                dimensionCell.className = 'p-4 text-sm font-medium text-gray-900 whitespace-nowrap align-top';
+                if (item.dimension) {
+                    dimensionCell.textContent = item.dimension;
+                }
+                row.appendChild(dimensionCell);
+
+                const criterionCell = document.createElement('td');
+                criterionCell.className = 'p-4 text-sm text-gray-700';
+                
+                const criterionText = document.createElement('div');
+                criterionText.className = 'mb-1 font-semibold text-gray-800';
+                criterionText.textContent = item.criterion;
+                criterionCell.appendChild(criterionText);
+                
+                const descriptionText = document.createElement('p');
+                descriptionText.className = 'mb-2 text-xs text-gray-500 italic';
+                descriptionText.textContent = item.description;
+                criterionCell.appendChild(descriptionText);
+
+                row.appendChild(criterionCell);
+
+                const ratingCell = document.createElement('td');
+                ratingCell.className = 'p-4 text-sm text-gray-600 w-80 align-top';
+
+                const sliderContainer = document.createElement('div');
+                sliderContainer.className = 'flex flex-col gap-2 mt-2';
+
+                const sliderAndValueContainer = document.createElement('div');
+                sliderAndValueContainer.className = 'flex items-center gap-4 w-full';
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.min = 1;
+                slider.max = 5;
+                slider.step = 1;
+                slider.value = item.rating;
+                slider.dataset.id = item.id;
+                slider.className = 'flex-1';
+                
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'w-6 text-center font-semibold text-gray-700';
+                valueSpan.textContent = item.rating;
+
+                const dynamicLabelDiv = document.createElement('div');
+                dynamicLabelDiv.className = 'text-xs text-gray-400 font-medium h-4';
+                dynamicLabelDiv.textContent = item.labels[item.rating];
+
+                slider.addEventListener('input', (event) => {
+                    const currentRating = parseInt(event.target.value);
+                    const itemId = event.target.dataset.id;
+                    const foundItem = assessmentData.find(d => d.id === itemId);
+                    if (foundItem) foundItem.rating = currentRating;
+                    
+                    valueSpan.textContent = currentRating;
+                    dynamicLabelDiv.textContent = foundItem.labels[currentRating];
+                    checkCompletion();
+                });
+
+                sliderAndValueContainer.appendChild(slider);
+                sliderAndValueContainer.appendChild(valueSpan);
+                sliderContainer.appendChild(sliderAndValueContainer);
+                sliderContainer.appendChild(dynamicLabelDiv);
+                ratingCell.appendChild(sliderContainer);
+                row.appendChild(ratingCell);
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function checkCompletion() {
+            const allRated = assessmentData.every(item => item.rating !== null);
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const isEmailValid = emailRegex.test(emailInput.value);
+            const evaluateBtn = document.getElementById('evaluate-btn');
+            evaluateBtn.disabled = !(allRated && isEmailValid);
+        }
+
+        function getMaturityLevel(avgRating) {
+            if (avgRating <= 2.5) {
+                return {
+                    level: 'Entdecker',
+                    description: 'Ihr Unternehmen hat erste Schritte unternommen und sucht Wege zur strategischen Verankerung.',
+                    color: 'text-[#2cc700]',
+                    recommendations: [
+                        'Erstellen Sie eine grundlegende Circular-Strategie.',
+                        'Identifizieren Sie Pilotprojekte mit schnellen Erfolgen.',
+                        'Schaffen Sie interne Awareness durch Schulungen.',
+                        'Beginnen Sie mit der Erfassung der wichtigsten Materialflüsse.'
+                    ]
+                };
+            } else if (avgRating <= 4.0) {
+                return {
+                    level: 'Fortgeschritten',
+                    description: 'Wichtige Kriterien sind umgesetzt. Es gilt nun, diese zu skalieren.',
+                    color: 'text-[#2cc700]',
+                    recommendations: [
+                        'Skalieren Sie Pilotprojekte auf das gesamte Unternehmen.',
+                        'Integrieren Sie Lieferanten stärker in den Kreislauf.',
+                        'Nutzen Sie digitale Tools für die Materialtransparenz.',
+                        'Bauen Sie ein Partnernetzwerk für Reparatur und Recycling auf.'
+                    ]
+                };
+            } else {
+                return {
+                    level: 'Vorreiter',
+                    description: 'Ihr Unternehmen ist führend und setzt Branchenstandards.',
+                    color: 'text-[#2cc700]',
+                    recommendations: [
+                        'Entwickeln Sie innovative Product-as-a-Service Modelle.',
+                        'Nutzen Sie KI-gestützte Analytics zur Prozessoptimierung.',
+                        'Übernehmen Sie die Führungsrolle in Branchennetzwerken.',
+                        'Investieren Sie in zukunftsweisende R&D für neue Materialien.'
+                    ]
+                };
+            }
+        }
+
+        function getDimensionAverages() {
+            const dimensionData = {};
+            let lastDim = "";
+            assessmentData.forEach(item => {
+                if (item.dimension) lastDim = item.dimension;
+                const dimension = lastDim;
+                if (!dimensionData[dimension]) {
+                    dimensionData[dimension] = { sum: 0, count: 0 };
+                }
+                dimensionData[dimension].sum += item.rating;
+                dimensionData[dimension].count++;
+            });
+
+            const labels = Object.keys(dimensionData);
+            const data = labels.map(label => dimensionData[label].sum / dimensionData[label].count);
+
+            return { labels, data };
+        }
+        
+        function renderChart() {
+            const ctx = document.getElementById(chartId).getContext('2d');
+            const { labels, data } = getDimensionAverages();
+
+            const chartConfig = {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Ihre Bewertung',
+                        data: data,
+                        backgroundColor: 'rgba(44, 199, 0, 0.4)',
+                        borderColor: '#2cc700',
+                        pointBackgroundColor: '#2cc700',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: '#2cc700',
+                        borderWidth: 3,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { display: true },
+                            suggestedMin: 0,
+                            suggestedMax: 5,
+                            ticks: { beginAtZero: true, stepSize: 1 },
+                            pointLabels: { font: { size: 12, weight: '600' } }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            };
+
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, chartConfig);
+        }
+        
+        document.getElementById('evaluate-btn').addEventListener('click', () => {
+            document.getElementById('initial-message').classList.add('hidden');
+            renderChart();
+
+            const totalRating = assessmentData.reduce((sum, item) => sum + item.rating, 0);
+            const averageRating = totalRating / assessmentData.length;
+            const maturityLevel = getMaturityLevel(averageRating);
+
+            const resultSection = document.getElementById('classification-result');
+            const levelTitle = document.getElementById('maturity-level-title');
+            const levelDescription = document.getElementById('maturity-level-description');
+            const recommendationsContainer = document.getElementById('maturity-level-recommendations');
+            
+            levelTitle.textContent = maturityLevel.level;
+            levelTitle.className = `text-3xl font-bold mb-2 ${maturityLevel.color}`;
+            levelDescription.textContent = maturityLevel.description;
+
+            recommendationsContainer.innerHTML = '';
+            const recommendationsList = document.createElement('ul');
+            recommendationsList.className = 'list-disc list-inside space-y-2 text-gray-700 max-w-2xl mx-auto text-left';
+            
+            maturityLevel.recommendations.forEach(rec => {
+                const listItem = document.createElement('li');
+                listItem.textContent = rec;
+                recommendationsList.appendChild(listItem);
+            });
+            recommendationsContainer.appendChild(recommendationsList);
+            resultSection.classList.remove('hidden');
+            
+            resultSection.scrollIntoView({ behavior: 'smooth' });
+        });
+        
+        document.getElementById('email-input').addEventListener('input', checkCompletion);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTable();
+            checkCompletion();
+        });
+
+        window.addEventListener('resize', () => {
+            if (chart) chart.resize();
+        });
+    </script>
+</body>
+</html>
